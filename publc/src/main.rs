@@ -1,5 +1,5 @@
 use clap::Clap;
-use publication::{Emitter, Parser};
+use publication::{extensions, Emitter, Parser};
 use std::convert::TryInto;
 use std::fs::{read_to_string, write};
 use std::path::PathBuf;
@@ -7,14 +7,24 @@ use std::time::Instant;
 
 #[derive(Clap, Debug)]
 struct Options {
+    input: PathBuf,
     #[clap(short, long)]
     out: Option<PathBuf>,
 
-    input: PathBuf,
+    // Built-in extensions
+    #[clap(short, long)]
+    bold: bool,
+    #[clap(short, long)]
+    italics: bool,
 }
 
 fn main() {
-    let Options { input, out } = Options::parse();
+    let Options {
+        input,
+        out,
+        bold,
+        italics,
+    } = Options::parse();
 
     let output = match input.extension() {
         Some(ext) if ext == "publ" => out.unwrap_or_else(|| {
@@ -62,7 +72,15 @@ fn main() {
         }
     };
 
-    let parser = Parser::new(raw);
+    let mut parser = Parser::new(raw);
+
+    if bold {
+        parser.add_extension(extensions::Bold);
+    }
+
+    if italics {
+        parser.add_extension(extensions::Italics);
+    }
 
     let emitted = match parser.emit_with(emitter.as_ref()) {
         Ok(s) => s,

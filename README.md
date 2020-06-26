@@ -47,3 +47,31 @@ $ publc example.publ -o example.html
   Because now, after that double line break, we&apos;re in a new paragraph.
 </p>
 ```
+
+## Extensions
+
+Like mentioned previously, the syntax of Publication is very limited
+out of the box. This is because, depending on your use-case, not every
+kind of formatting makes sense. And enabling them all by default, like
+for instance how the Markdown specification suggests, is not going
+to be at all what you want in the majority of cases.
+
+Consider, for instance, the careful introduction of new formatting
+options in a rich text field; you wouldn't necessarily want your users
+to have the full power of HTML at their fingertips. Instead, you
+gradually add support for features that make sense, and have a good
+implementation when rendered into whatever presentation format you use.
+
+All features that have use-cases where they're _not_ useful, are instead
+provided as an **extension**.
+
+Extensions add syntactic structures that are otherwise treated as normal
+text, and allows emitters to choose to output those fragments in
+specialized ways.
+
+### Built-in Extensions
+
+| Name              | Configuration       | Syntax            | HTML Output                      | TXT Output      |
+|:------------------|:--------------------|:------------------|:---------------------------------|:----------------|
+| **Italics**       | `--italics` or `-i` | `That's /great/!` | `That's <em>great</em>!`         | `That's great!` |
+| **Bold**          | `--bold` or `-b`    | `That's *great*!` | `That's <strong>great</strong>!` | `That's great!` |

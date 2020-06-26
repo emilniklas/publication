@@ -1,13 +1,22 @@
 mod emitter;
 pub use self::emitter::*;
 
+pub mod extensions;
+use self::extensions::Extension;
+
 use std::convert::TryInto;
 use std::fmt;
 use std::path::Path;
 
 #[derive(Debug, PartialEq)]
-pub enum Node {
-    Paragraph(String),
+pub enum Block {
+    Paragraph(Vec<Element>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Element {
+    Text(String),
+    Decorated(&'static str, String),
 }
 
 #[derive(Debug)]
@@ -28,6 +37,7 @@ type ParseResult<T> = Result<T, ParseError>;
 pub struct Parser {
     raw: Vec<char>,
     offset: usize,
+    extensions: Vec<Box<dyn Extension>>,
 }
 
 impl Parser {
@@ -35,20 +45,25 @@ impl Parser {
         Parser {
             raw: raw.chars().collect(),
             offset: 0,
+            extensions: vec![],
         }
+    }
+
+    pub fn add_extension<E: Extension + 'static>(&mut self, extension: E) {
+        self.extensions.push(Box::new(extension));
     }
 
     pub fn emit_with(mut self, emitter: &dyn Emitter) -> ParseResult<String> {
         let mut out = String::new();
         self.move_past_whitespace();
         while !self.is_at_end() {
-            emitter.emit(self.parse_block()?, &mut out);
+            emitter.emit_block(self.parse_block()?, &mut out);
             self.move_past_whitespace();
         }
         Ok(out)
     }
 
-    pub fn parse(mut self) -> ParseResult<Vec<Node>> {
+    pub fn parse(mut self) -> ParseResult<Vec<Block>> {
         let mut out = vec![];
         self.move_past_whitespace();
         while !self.is_at_end() {
@@ -103,20 +118,40 @@ impl Parser {
         }
     }
 
-    fn parse_block(&mut self) -> ParseResult<Node> {
-        match self.peek() {
-            _ => self.parse_paragraph_block(),
-        }
+    fn parse_block(&mut self) -> ParseResult<Block> {
+        self.parse_paragraph_block()
     }
 
-    fn parse_paragraph_block(&mut self) -> ParseResult<Node> {
+    fn parse_paragraph_block(&mut self) -> ParseResult<Block> {
         if self.is_at_end() {
             return Err(ParseError::UnexpectedEndOfFile);
         }
 
+        let mut elements = vec![];
+
         let mut paragraph = String::new();
         let mut whitespace = false;
-        while !self.sees_end_of_paragraph() {
+        let extensions_tmp = std::mem::replace(&mut self.extensions, vec![]);
+        'elements: while !self.sees_end_of_paragraph() {
+            for ext in extensions_tmp.iter() {
+                let offset_before_ext = self.offset;
+                if let Some(el) = ext.parse_element(self)? {
+                    if whitespace {
+                        paragraph.push(' ');
+                        whitespace = false;
+                    }
+                    if !paragraph.is_empty() {
+                        elements.push(Element::Text(std::mem::replace(
+                            &mut paragraph,
+                            String::new(),
+                        )));
+                    }
+                    elements.push(el);
+                    continue 'elements;
+                }
+                self.offset = offset_before_ext;
+            }
+
             match self.take() {
                 '#' => self.move_past_comment(),
                 w if w.is_whitespace() => {
@@ -131,7 +166,11 @@ impl Parser {
                 }
             }
         }
-        Ok(Node::Paragraph(paragraph))
+        if !paragraph.is_empty() {
+            elements.push(Element::Text(paragraph));
+        }
+        let _ = std::mem::replace(&mut self.extensions, extensions_tmp);
+        Ok(Block::Paragraph(elements))
     }
 
     fn sees_end_of_paragraph(&self) -> bool {
@@ -159,35 +198,79 @@ mod tests {
 
         assert_eq!(
             parser.parse().unwrap(),
-            vec![Node::Paragraph("Hello! This is a sentence!".into())]
+            vec![Block::Paragraph(vec![Element::Text(
+                "Hello! This is a sentence!".into()
+            )])]
         );
     }
 
     #[test]
     fn comments_and_extraneous_whitespace_is_removed() {
-        let parser = Parser::new(r#"
+        let parser = Parser::new(
+            r#"
           # This is a comment
           
           This is a paragraph! # Which happens to include a comment
           And it spans multiple
           lines!
-        "#.into());
+        "#
+            .into(),
+        );
 
         assert_eq!(
             parser.parse().unwrap(),
-            vec![Node::Paragraph("This is a paragraph! And it spans multiple lines!".into())]
+            vec![Block::Paragraph(vec![Element::Text(
+                "This is a paragraph! And it spans multiple lines!".into()
+            )])]
         );
     }
-    
+
     #[test]
     fn html_emitter_escapes() {
-        let parser = Parser::new(r#"
+        let parser = Parser::new(
+            r#"
           This isn't Markdown!
-        "#.into());
+        "#
+            .into(),
+        );
 
         assert_eq!(
             parser.emit_with(&HtmlEmitter).unwrap(),
             "<p>\n  This isn&apos;t Markdown!\n</p>\n"
+        );
+    }
+
+    #[test]
+    fn bold_extension() {
+        let mut parser = Parser::new(
+            r#"
+          This *isn't* Markdown!
+        "#
+            .into(),
+        );
+
+        parser.add_extension(extensions::Bold);
+
+        assert_eq!(
+            parser.emit_with(&HtmlEmitter).unwrap(),
+            "<p>\n  This <strong>isn&apos;t</strong> Markdown!\n</p>\n"
+        );
+    }
+
+    #[test]
+    fn italics_extension() {
+        let mut parser = Parser::new(
+            r#"
+          This /isn't/ Markdown!
+        "#
+            .into(),
+        );
+
+        parser.add_extension(extensions::Italics);
+
+        assert_eq!(
+            parser.emit_with(&HtmlEmitter).unwrap(),
+            "<p>\n  This <em>isn&apos;t</em> Markdown!\n</p>\n"
         );
     }
 }
