@@ -71,7 +71,8 @@ specialized ways.
 
 ### Built-in Extensions
 
-| Name              | Configuration       | Syntax            | HTML Output                      | TXT Output      |
-|:------------------|:--------------------|:------------------|:---------------------------------|:----------------|
-| **Italics**       | `--italics` or `-i` | `That's /great/!` | `That's <em>great</em>!`         | `That's great!` |
-| **Bold**          | `--bold` or `-b`    | `That's *great*!` | `That's <strong>great</strong>!` | `That's great!` |
+| Name        | Configuration          | Syntax            | HTML Output                      | TXT Output      |
+|:------------|:-----------------------|:------------------|:---------------------------------|:----------------|
+| **Italics** | `--italics` or `-i`    | `That's /great/!` | `That's <em>great</em>!`         | `That's great!` |
+| **Bold**    | `--bold` or `-b`       | `That's *great*!` | `That's <strong>great</strong>!` | `That's great!` |
+| **Lists**   | `[--list,-l] <bullet>` | `<bullet> Item`   | `<ul><li>Item</li></ul>`         | `• Item`        |

@@ -16,6 +16,8 @@ struct Options {
     bold: bool,
     #[clap(short, long)]
     italics: bool,
+    #[clap(short, long)]
+    list: Option<String>,
 }
 
 fn main() {
@@ -24,6 +26,7 @@ fn main() {
         out,
         bold,
         italics,
+        list,
     } = Options::parse();
 
     let output = match input.extension() {
@@ -80,6 +83,10 @@ fn main() {
 
     if italics {
         parser.add_extension(extensions::Italics);
+    }
+
+    if let Some(bullet) = list {
+        parser.add_extension(extensions::Lists::new(bullet));
     }
 
     let emitted = match parser.emit_with(emitter.as_ref()) {
